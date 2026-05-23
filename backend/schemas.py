@@ -38,9 +38,13 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str | None = None
+    role: str
 
     class Config:
         from_attributes = True
+
+class UserWithTasksResponse(UserResponse):
+    tasks: list[TaskResponse] = []
 
 
 class UserLogin(BaseModel):

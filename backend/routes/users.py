@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from jose import jwt, ExpiredSignatureError, JWTError
 
 from backend.config import SECRET_KEY, ALGORITHM
 from backend.database import get_db
 from backend.models import User
-from backend.schemas import UserCreate, UserResponse, UserLogin, Token
-from backend.security import create_access_token, get_current_user, verify_password, security
+from backend.schemas import UserCreate, UserResponse, UserLogin, Token, UserWithTasksResponse
+from backend.security import create_access_token, get_current_user, get_current_admin, verify_password, security
 from backend.crud import users as crud_users
 
 router = APIRouter()
@@ -75,3 +75,17 @@ def debug_token(credentials: HTTPAuthorizationCredentials = Security(security)):
         raise HTTPException(status_code=401, detail="Token expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@router.get("/admin/panel")
+def admin_panel(current_admin: User = Depends(get_current_admin)):
+    return {"message": "Welcome to the admin panel!", "admin_name": current_admin.username}
+
+
+@router.get("/users/{user_id}/tasks", response_model=UserWithTasksResponse)
+def get_user_with_tasks(user_id: int, db: Session = Depends(get_db)):
+    # ИСПОЛЬЗУЕМ JOIN (joinedload) для умной загрузки
+    user = db.query(User).options(joinedload(User.tasks)).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
