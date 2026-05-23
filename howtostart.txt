@@ -1,0 +1,130 @@
+FastAPI + PostgreSQL: восстановление после переустановки системы
+
+Проект ожидает PostgreSQL по строке из backend/database.py:
+
+postgresql+psycopg://myuser:1234@localhost:5432/mydb
+
+То есть нужны:
+- пользователь PostgreSQL: myuser
+- пароль: 1234
+- база данных: mydb
+
+1. Поставить системные пакеты
+
+Fedora:
+sudo dnf install python3 python3-pip postgresql postgresql-server postgresql-contrib
+
+Ubuntu/Debian:
+sudo apt update
+sudo apt install python3 python3-venv python3-pip postgresql postgresql-contrib
+
+2. Запустить PostgreSQL
+
+Fedora, если база еще не инициализирована:
+sudo postgresql-setup --initdb
+
+Запуск и автозапуск:
+sudo systemctl enable --now postgresql
+
+Проверка:
+systemctl status postgresql
+
+3. Создать пользователя и базу
+
+sudo -u postgres psql
+
+Внутри psql выполнить:
+
+CREATE USER myuser WITH PASSWORD '1234';
+CREATE DATABASE mydb OWNER myuser;
+GRANT ALL PRIVILEGES ON DATABASE mydb TO myuser;
+\q
+
+Проверка подключения:
+psql "postgresql://myuser:1234@localhost:5432/mydb"
+
+Если подключилось, выйти:
+\q
+
+4. Создать виртуальное окружение Python
+
+cd /home/wser/Documents/fastapi_pg
+python3 -m venv .venv
+source .venv/bin/activate
+
+5. Настроить .env
+
+В проекте должен быть файл .env:
+
+DATABASE_URL=postgresql+psycopg://myuser:1234@localhost:5432/mydb
+SECRET_KEY=dev-secret-key-change-later
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+Для примера есть .env.example. В реальном проекте .env не коммитят, потому что там пароли, ключи и локальные настройки.
+
+6. Установить зависимости
+
+pip install --upgrade pip
+pip install -r requirements.txt
+
+Важно: bcrypt зафиксирован на 4.0.1, потому что passlib 1.7.4 с более новыми версиями bcrypt может ломать или шуметь при хешировании паролей.
+
+7. Запустить API
+
+uvicorn backend.main:api --reload
+
+API будет доступно тут:
+
+http://127.0.0.1:8000
+http://127.0.0.1:8000/docs
+
+8. Быстрая проверка через curl
+
+Создать пользователя:
+
+curl -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"1234"}'
+
+Залогиниться:
+
+curl -X POST http://127.0.0.1:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"1234"}'
+
+Из ответа скопировать access_token.
+
+Создать задачу:
+
+curl -X POST http://127.0.0.1:8000/tasks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN_HERE" \
+  -d '{"title":"first task","description":"check api","done":false}'
+
+Получить задачи:
+
+curl http://127.0.0.1:8000/tasks \
+  -H "Authorization: Bearer TOKEN_HERE"
+
+9. Частые проблемы
+
+ModuleNotFoundError: No module named 'backend'
+- запускать uvicorn нужно из корня проекта:
+  cd /home/wser/Documents/fastapi_pg
+  uvicorn backend.main:api --reload
+
+connection refused / could not connect to server
+- PostgreSQL не запущен:
+  sudo systemctl enable --now postgresql
+
+password authentication failed for user "myuser"
+- пользователь или пароль в PostgreSQL не совпадает со строкой в backend/database.py.
+
+database "mydb" does not exist
+- создать базу командой:
+  sudo -u postgres createdb -O myuser mydb
+
+Address already in use
+- порт 8000 занят, запустить на другом:
+  uvicorn backend.main:api --reload --port 8001
