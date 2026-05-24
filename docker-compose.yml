@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: mydb
+    ports:
+      # Меняем порт хоста на 5433, чтобы не конфликтовать с локальным Postgres на 5432
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg://myuser:1234@db:5432/mydb
+    depends_on:
+      - db
+    # Команда для применения миграций перед запуском сервера
+    command: sh -c "alembic upgrade head && uvicorn backend.main:api --host 0.0.0.0 --port 8000"
+
+volumes:
+  postgres_data:
