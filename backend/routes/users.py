@@ -6,8 +6,8 @@ from jose import jwt, ExpiredSignatureError, JWTError
 from backend.config import SECRET_KEY, ALGORITHM
 from backend.database import get_db
 from backend.models import User
-from backend.schemas import UserCreate, UserResponse, UserLogin, Token, UserWithTasksResponse
-from backend.security import create_access_token, get_current_user, get_current_admin, verify_password, security
+from backend.schemas import UserCreate, UserResponse, UserLogin, Token, UserWithTasksResponse, TokenRefreshRequest
+from backend.security import create_access_token, create_refresh_token, get_current_user, get_current_admin, verify_password, security
 from backend.crud import users as crud_users
 
 router = APIRouter()
@@ -28,12 +28,40 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Wrong password")
 
-    access_token = create_access_token(data={
+    token_data = {
         "sub": db_user.username,
         "email": db_user.email,
         "user_id": db_user.id
-    })
-    return {"access_token": access_token, "token_type": "bearer"}
+    }
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(request: TokenRefreshRequest, db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token_data = {
+        "sub": db_user.username,
+        "email": db_user.email,
+        "user_id": db_user.id
+    }
+    new_access_token = create_access_token(data=token_data)
+    new_refresh_token = create_refresh_token(data=token_data)
+    
+    return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
 
 @router.get("/users/get", response_model=list[UserResponse])
 def get_users(
