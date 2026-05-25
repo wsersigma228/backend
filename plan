@@ -64,20 +64,20 @@
 
 Что нужно подтянуть дальше
 
-1. Git
+1. Git(сделано)
 - Инициализировать репозиторий, зафиксировать текущее состояние.
 - Понять базовые команды: add, commit, push, pull.
 
-2. Роли пользователей + SQL глубже
+2. Роли пользователей + SQL глубже(сделано)
 - Добавить role (user/admin) к User, ограничить эндпоинты.
 - Разобрать joins, indexes, unique constraints, lazy loading и relationship.
 
-3. Refresh tokens
+3. Refresh tokens(сделано)
 - Разобрать access token vs refresh token.
 - Добавить refresh endpoint.
 - Понять, где хранить refresh token и как делать logout.
 
-4. Docker
+4. Docker(сделано)
 - Сделать Dockerfile.
 - Сделать docker-compose с FastAPI + PostgreSQL.
 - Перенести DATABASE_URL под docker-compose.
