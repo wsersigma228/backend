@@ -77,7 +77,7 @@ def delete_user(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.id != user_id:  # ← нельзя удалять чужой аккаунт
+    if current_user.id != user_id:  # нельзя удалять чужой аккаунт
         raise HTTPException(status_code=403, detail="Not allowed")
 
     success = crud_users.delete_user(db, user_id)
@@ -93,18 +93,6 @@ def read_current_user(current_user: User = Depends(get_current_user)):
 def read_current_user_tasks_count(current_user: User = Depends(get_current_user)):
     return {"count": len(current_user.tasks)}
 
-@router.get("/debug/token")
-def debug_token(credentials: HTTPAuthorizationCredentials = Security(security)):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-
 @router.get("/admin/panel")
 def admin_panel(current_admin: User = Depends(get_current_admin)):
     return {"message": "Welcome to the admin panel!", "admin_name": current_admin.username}
@@ -112,7 +100,6 @@ def admin_panel(current_admin: User = Depends(get_current_admin)):
 
 @router.get("/users/{user_id}/tasks", response_model=UserWithTasksResponse)
 def get_user_with_tasks(user_id: int, db: Session = Depends(get_db)):
-    # ИСПОЛЬЗУЕМ JOIN (joinedload) для умной загрузки
     user = db.query(User).options(joinedload(User.tasks)).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
