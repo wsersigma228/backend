@@ -1,30 +1,34 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from backend.models import Task
 from backend.schemas import TaskCreate, TaskUpdate
 
-def get_task(db: Session, task_id: int, user_id: int):
-    return db.query(Task).filter(
+async def get_task(db: AsyncSession, task_id: int, user_id: int):
+    result = await db.execute(select(Task).filter(
         Task.id == task_id,
         Task.user_id == user_id
-    ).first()
+    ))
+    return result.scalars().first()
 
-def get_tasks(
-        db: Session,
+async def get_tasks(
+        db: AsyncSession,
         user_id: int,
         done: bool = None,
         search: str = None,
         limit: int = 100,
         offset: int = 0
 ):
-    query = db.query(Task).filter(Task.user_id == user_id)
+    query = select(Task).filter(Task.user_id == user_id)
     if done is not None:
         query = query.filter(Task.done.is_(done))
     if search:
         query = query.filter(Task.title.ilike(f"%{search}%"))
-    return query.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
+    query = query.order_by(Task.created_at.desc()).offset(offset).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()
 
-def create_task(
-        db: Session,
+async def create_task(
+        db: AsyncSession,
         task_schemas: TaskCreate,
         user_id: int
 ):
@@ -35,25 +39,25 @@ def create_task(
         user_id=user_id
     )
     db.add(new_task)
-    db.commit()
-    db.refresh(new_task)
+    await db.commit()
+    await db.refresh(new_task)
     return new_task
 
-def delete_task(db: Session, task_id: int, user_id: int):
-    task = get_task(db, task_id, user_id)
+async def delete_task(db: AsyncSession, task_id: int, user_id: int):
+    task = await get_task(db, task_id, user_id)
     if task:
-        db.delete(task)
-        db.commit()
+        await db.delete(task)
+        await db.commit()
         return True
     return False
 
-def update_task(
-        db: Session,
+async def update_task(
+        db: AsyncSession,
         task_id: int,
         user_id: int,
         task_data: TaskUpdate
 ):
-    task = get_task(db, task_id, user_id)
+    task = await get_task(db, task_id, user_id)
     if not task:
         return None
 
@@ -61,6 +65,6 @@ def update_task(
     for key, value in update_data.items():
         setattr(task, key, value)
 
-    db.commit()
-    db.refresh(task)
+    await db.commit()
+    await db.refresh(task)
     return task
