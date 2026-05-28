@@ -5,6 +5,7 @@ from backend.database import get_db
 from backend.models import User
 from backend.schemas import TaskCreate, TaskUpdate, TaskResponse
 from backend.routes.users import get_current_user
+from backend.redis_client import redis_client
 from backend.crud import tasks as crud_tasks
 
 router = APIRouter()
@@ -16,7 +17,10 @@ async def create_task(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    return await crud_tasks.create_task(db=db, task_schemas=task, user_id=current_user.id)
+    task_obj = await crud_tasks.create_task(db=db, task_schemas=task, user_id=current_user.id)
+    # Сбрасываем кэш при добавлении задачи
+    await redis_client.delete(f"user:{current_user.id}:tasks_count")
+    return task_obj
 
 @router.get("/tasks", response_model=list[TaskResponse])
 async def get_tasks(
@@ -71,6 +75,9 @@ async def delete_task(
         current_user: User = Depends(get_current_user)
 ):
     success = await crud_tasks.delete_task(db, task_id=task_id, user_id=current_user.id)
+    if success:
+        # Сбрасываем кэш при удалении задачи
+        await redis_client.delete(f"user:{current_user.id}:tasks_count")
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
     return None

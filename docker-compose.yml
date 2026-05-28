@@ -9,7 +9,6 @@ services:
       POSTGRES_PASSWORD: 1234
       POSTGRES_DB: mydb
     ports:
-      # Меняем порт хоста на 5433, чтобы не конфликтовать с локальным Postgres на 5432
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -22,11 +21,20 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+psycopg://myuser:1234@db:5432/mydb
+      - DATABASE_URL=postgresql+psycopg_async://myuser:1234@db:5432/mydb
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
+      - redis
     # Команда для применения миграций перед запуском сервера
     command: sh -c "alembic upgrade head && uvicorn backend.main:api --host 0.0.0.0 --port 8000"
+
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres_data:

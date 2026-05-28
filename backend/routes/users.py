@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from jose import jwt, ExpiredSignatureError, JWTError
 
+from backend.redis_client import redis_client
+import json
+from sqlalchemy import func
+from backend.models import Task
 from backend.config import SECRET_KEY, ALGORITHM
 from backend.database import get_db
 from backend.models import User
@@ -90,8 +94,23 @@ async def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.get("/me/tasks-count")
-async def read_current_user_tasks_count(current_user: User = Depends(get_current_user)):
-    return {"count": len(current_user.tasks)}
+async def read_current_user_tasks_count(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+
+    cache_key = f"user:{current_user.id}:tasks_count"
+    cached_count = await redis_client.get(cache_key)
+    
+    if cached_count is not None:
+        return {"count": int(cached_count), "source": "redis_cache"}
+
+    result = await db.execute(select(func.count(Task.id)).filter(Task.user_id == current_user.id))
+    count = result.scalar()
+
+    await redis_client.setex(cache_key, 60, count)
+    
+    return {"count": count, "source": "database"}
 
 @router.get("/admin/panel")
 def admin_panel(current_admin: User = Depends(get_current_admin)):
