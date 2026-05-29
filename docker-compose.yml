@@ -2,16 +2,17 @@ version: "3.8"
 
 services:
   db:
-    image: postgres:15-alpine
+    image: docker.io/library/postgres:15-alpine
     restart: always
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: 1234
       POSTGRES_DB: mydb
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:Z
 
   web:
     build: .
@@ -28,10 +29,12 @@ services:
       - redis
     # Команда для применения миграций перед запуском сервера
     command: sh -c "alembic upgrade head && uvicorn backend.main:api --host 0.0.0.0 --port 8000"
+    volumes:
+      - .:/app # Delete this on prod
 
 
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     restart: always
     ports:
       - "6379:6379"
