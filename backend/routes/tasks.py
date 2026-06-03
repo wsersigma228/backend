@@ -17,8 +17,9 @@ async def create_task(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
+    """Create a new task."""
     task_obj = await crud_tasks.create_task(db=db, task_schemas=task, user_id=current_user.id)
-    # Сбрасываем кэш при добавлении задачи
+    # Invalidate the cache so the dashboard fetches the updated count on the next request
     await redis_client.delete(f"user:{current_user.id}:tasks_count")
     return task_obj
 
@@ -31,6 +32,7 @@ async def get_tasks(
         limit: int = Query(default=100, ge=1, le=100),
         offset: int = Query(default=0, ge=0)
 ):
+    """List tasks for the current user."""
     return await crud_tasks.get_tasks(
         db=db,
         user_id=current_user.id,
@@ -76,7 +78,7 @@ async def delete_task(
 ):
     success = await crud_tasks.delete_task(db, task_id=task_id, user_id=current_user.id)
     if success:
-        # Сбрасываем кэш при удалении задачи
+        # Clear the old cached value after successful deletion
         await redis_client.delete(f"user:{current_user.id}:tasks_count")
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")

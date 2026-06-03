@@ -12,5 +12,6 @@ Base = declarative_base()
 
 
 async def get_db():
+    """Dependency to provide a database session for each request."""
     async with SessionLocal() as db:
         yield db

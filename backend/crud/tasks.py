@@ -18,6 +18,7 @@ async def get_tasks(
         limit: int = 100,
         offset: int = 0
 ):
+    """Fetch user tasks with optional filtering."""
     query = select(Task).filter(Task.user_id == user_id)
     if done is not None:
         query = query.filter(Task.done.is_(done))
@@ -32,6 +33,7 @@ async def create_task(
         task_schemas: TaskCreate,
         user_id: int
 ):
+    """Create a new task for specified user."""
     new_task = Task(
         title=task_schemas.title,
         description=task_schemas.description,

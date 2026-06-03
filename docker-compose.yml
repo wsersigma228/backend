@@ -30,7 +30,7 @@ services:
     # Команда для применения миграций перед запуском сервера
     command: sh -c "alembic upgrade head && uvicorn backend.main:api --host 0.0.0.0 --port 8000"
     volumes:
-      - .:/app # Delete this on prod
+      - .:/app:z # Delete this on prod
 
 
   redis:

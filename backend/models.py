@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 
 
 class Task(Base):
+    """User task representation."""
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -27,11 +28,13 @@ class Task(Base):
 
 
 class User(Base):
+    """User account representation."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=True, index=True)
     hashed_password = Column(String, nullable=False)
-    role = Column(String, default="user", nullable=False) # Роль: "user" или "admin"
-    tasks = relationship("Task", back_populates="user")
+    role = Column(String, default="user", nullable=False)
+    # Automatically delete associated tasks when a user is removed to prevent orphaned DB records
+    tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")

@@ -14,9 +14,11 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password: str) -> str:
+    """Hash a plaintext password."""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against its hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict):
@@ -35,6 +37,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(security),
     db: AsyncSession = Depends(get_db)
 ):
+    """Retrieve the current user from the JWT token."""
     token = credentials.credentials
     credentials_exception = HTTPException(
         status_code=401,
@@ -47,6 +50,7 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
     except ExpiredSignatureError:
+        # Return 401 to prompt the client applications to use their refresh token
         raise HTTPException(
             status_code=401,
             detail="Token expired",
@@ -66,6 +70,7 @@ async def get_current_user(
     return user
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Ensure the current user has admin privileges."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return current_user

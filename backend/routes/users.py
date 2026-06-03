@@ -20,13 +20,20 @@ router = APIRouter()
 
 @router.post("/users", response_model=UserResponse, status_code=201)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    """Register a new user account."""
     db_user = await crud_users.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=409, detail="Username already exists")
+    if user.email:
+        db_email = await crud_users.get_user_by_email(db, email=user.email)
+        if db_email:
+            raise HTTPException(status_code=409, detail="Email already exists")
     return await crud_users.create_user(db=db, user_schemas=user)
+
 
 @router.post("/login", response_model=Token)
 async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
+    """Authenticate user and return tokens."""
     db_user = await crud_users.get_user_by_username(db, username=user.username)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -42,6 +49,7 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
     access_token = create_access_token(data=token_data)
     refresh_token = create_refresh_token(data=token_data)
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(request: TokenRefreshRequest, db: AsyncSession = Depends(get_db)):
@@ -70,8 +78,13 @@ async def refresh_token(request: TokenRefreshRequest, db: AsyncSession = Depends
 
     return {"access_token": new_access_token, "refresh_token": new_refresh_token, "token_type": "bearer"}
 
+
 @router.get("/users/get", response_model=list[UserResponse])
-async def get_users(db: AsyncSession = Depends(get_db)):
+async def get_users(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """Retrieve all users (admin only)."""
     return await crud_users.get_all_users(db)
 
 
@@ -81,7 +94,8 @@ async def delete_user(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.id != user_id:  # ← нельзя удалять чужой аккаунт
+    # Admins can bypass this check to manage any account
+    if current_user.id != user_id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not allowed")
 
     success = await crud_users.delete_user(db, user_id)
@@ -89,9 +103,11 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
     return None
 
+
 @router.get("/me", response_model=UserResponse)
 async def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
+
 
 @router.get("/me/tasks-count")
 async def read_current_user_tasks_count(
@@ -99,6 +115,7 @@ async def read_current_user_tasks_count(
     db: AsyncSession = Depends(get_db)
 ):
 
+    # Cache the task count to avoid hitting the database for dashboard statistics on every load
     cache_key = f"user:{current_user.id}:tasks_count"
     cached_count = await redis_client.get(cache_key)
     
@@ -112,12 +129,21 @@ async def read_current_user_tasks_count(
     
     return {"count": count, "source": "database"}
 
+
 @router.get("/admin/panel")
 def admin_panel(current_admin: User = Depends(get_current_admin)):
     return {"message": "Welcome to the admin panel!", "admin_name": current_admin.username}
 
+
 @router.get("/users/{user_id}/tasks", response_model=UserWithTasksResponse)
-async def get_user_with_tasks(user_id: int, db: AsyncSession = Depends(get_db)):
+async def get_user_with_tasks(
+    user_id: int, 
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Restrict users to their own tasks, but allow admins to see everything
+    if current_user.id != user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not allowed")
     result = await db.execute(select(User).options(joinedload(User.tasks)).filter(User.id == user_id))
     user = result.scalars().first()
     if not user:

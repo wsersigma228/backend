@@ -31,6 +31,5 @@ async def test_create_user_duplicate_username(async_client: AsyncClient):
     assert response1.status_code == 201
 
     response2 = await async_client.post("/users", json=user_data)
-
     assert response2.status_code == 409
     assert response2.json()["detail"] == "Username already exists"

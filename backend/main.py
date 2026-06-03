@@ -9,4 +9,5 @@ api.include_router(users.router)
 
 @api.get("/")
 def home():
+    """Health check endpoint to verify the API is running."""
     return {"ok": True}
